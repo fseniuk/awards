@@ -35,16 +35,16 @@ public class AwardsService {
                 List<Year> yearList = new ArrayList<>(entry.getValue());
                 List<Year> sortedList = yearList.stream().sorted().toList();
 
-                calculateMaxPerProducer(entry.getKey(), sortedList, producerMaxInterval);
                 calculateMinPerProducer(entry.getKey(), sortedList, producerMinInterval);
+                calculateMaxPerProducer(entry.getKey(), sortedList, producerMaxInterval);
             }
         }
 
-        int maxInterval = producerMaxInterval.stream().map(IndividualResult::getInterval).max(Integer::compareTo).get();
-        int minInterval = producerMinInterval.stream().map(IndividualResult::getInterval).min(Integer::compareTo).get();
+        int maxInterval = producerMaxInterval.stream().map(IndividualResult::interval).max(Integer::compareTo).get();
+        int minInterval = producerMinInterval.stream().map(IndividualResult::interval).min(Integer::compareTo).get();
 
-        SortedSet<IndividualResult> maxResult = new TreeSet<>(producerMaxInterval.stream().filter(pmi -> pmi.getInterval() == maxInterval).toList());
-        SortedSet<IndividualResult> minResult = new TreeSet<>(producerMinInterval.stream().filter(pmi -> pmi.getInterval() == minInterval).toList());
+        SortedSet<IndividualResult> maxResult = new TreeSet<>(producerMaxInterval.stream().filter(pmi -> pmi.interval() == maxInterval).toList());
+        SortedSet<IndividualResult> minResult = new TreeSet<>(producerMinInterval.stream().filter(pmi -> pmi.interval() == minInterval).toList());
 
         return completeResultFactory.create(minResult, maxResult);
     }
@@ -65,36 +65,55 @@ public class AwardsService {
         return producerYearSetMap;
     }
 
-    private void calculateMaxPerProducer(String producer, List<Year> sortedList, SortedSet<IndividualResult> producerMaxInterval) {
-        Year previousYear = sortedList.get(0);
-        Year followingYear = sortedList.get(sortedList.size() - 1);
-
-        producerMaxInterval.add(individualResultFactory.create(producer,
-                followingYear.getValue() - previousYear.getValue(),
-                previousYear,
-                followingYear));
-    }
-
     private void calculateMinPerProducer(String producer, List<Year> sortedList, SortedSet<IndividualResult> producerMinInterval) {
-        Integer minInterval = null;
-        Year finalMinPreviousYear = sortedList.get(0);
-        Year finalMinFollowingYear = sortedList.get(1);
+        int minInterval = calculateFirstInterval(sortedList);
+        Set<IndividualResult> minIntervalResults = new HashSet<>();
 
         for(int i = 0; i < sortedList.size() - 1; i++) {
-            Year minPreviousYear = sortedList.get(i);
-            Year minFollowingYear = sortedList.get(i + 1);
-            int interval = minFollowingYear.getValue() - minPreviousYear.getValue();
+            Year previousYear = sortedList.get(i);
+            Year followingYear = sortedList.get(i + 1);
+            int interval = followingYear.getValue() - previousYear.getValue();
 
-            if(minInterval == null || interval < minInterval) {
+            if(!(interval > minInterval)) {
+                if(interval < minInterval) {
+                    minIntervalResults.clear();
+                }
                 minInterval = interval;
-                finalMinPreviousYear = minPreviousYear;
-                finalMinFollowingYear = minFollowingYear;
+                minIntervalResults.add(individualResultFactory.create(producer,
+                        interval,
+                        previousYear,
+                        followingYear));
             }
         }
 
-        producerMinInterval.add(individualResultFactory.create(producer,
-                minInterval,
-                finalMinPreviousYear,
-                finalMinFollowingYear));
+        producerMinInterval.addAll(minIntervalResults);
+    }
+
+    private void calculateMaxPerProducer(String producer, List<Year> sortedList, SortedSet<IndividualResult> producerMaxInterval) {
+        int maxInterval = calculateFirstInterval(sortedList);
+        Set<IndividualResult> maxIntervalResults = new HashSet<>();
+
+        for(int i = 0; i < sortedList.size() - 1; i++) {
+            Year previousYear = sortedList.get(i);
+            Year followingYear = sortedList.get(i + 1);
+            int interval = followingYear.getValue() - previousYear.getValue();
+
+            if(!(interval < maxInterval)) {
+                if(interval > maxInterval) {
+                    maxIntervalResults.clear();
+                }
+                maxInterval = interval;
+                maxIntervalResults.add(individualResultFactory.create(producer,
+                        interval,
+                        previousYear,
+                        followingYear));
+            }
+        }
+
+        producerMaxInterval.addAll(maxIntervalResults);
+    }
+
+    private static int calculateFirstInterval(List<Year> sortedList) {
+        return sortedList.get(1).getValue() - sortedList.get(0).getValue();
     }
 }
